@@ -1,0 +1,12 @@
+**/.settings/*
+**/.classpath
+**/.project
+**/srcold/*
+**/target/
+**/metadata/
+**/RemoteSystemsTempFiles/
+**/.recommenders/
+/.metadata/
+**/.idea/*
+.settings/*
+**/*.iml
