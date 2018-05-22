@@ -5,7 +5,6 @@ import java.util.Objects;
 public class User {
     private int id;
     private String name;
-    private int choice;
 
     public int getId() {
         return id;
@@ -23,13 +22,6 @@ public class User {
         this.name = name;
     }
 
-    public int getChoice() {
-        return choice;
-    }
-
-    public void setChoice(int choice) {
-        this.choice = choice;
-    }
 
     @Override
     public boolean equals(Object o) {
@@ -37,14 +29,13 @@ public class User {
         if (o == null || getClass() != o.getClass()) return false;
         User user = (User) o;
         return id == user.id &&
-                choice == user.choice &&
                 Objects.equals(name, user.name);
     }
 
     @Override
     public int hashCode() {
 
-        return Objects.hash(id, name, choice);
+        return Objects.hash(id, name);
     }
 
     @Override
@@ -52,7 +43,6 @@ public class User {
         return "User{" +
                 "id=" + id +
                 ", name='" + name + '\'' +
-                ", choice=" + choice +
                 '}';
     }
 }
