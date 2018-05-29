@@ -43,13 +43,17 @@ public class Dialog {
     }
 
     public boolean userExistInDialog(User user) {
-        System.out.println("USER : " + user);
-        System.out.println("USERS : " + users);
         return users.contains(user);
     }
 
     public List<String> getDialog() {
         return dialog;
+    }
+
+    public void printDialog() {
+        for (String message : dialog) {
+            System.out.println(message);
+        }
     }
 
     @Override
