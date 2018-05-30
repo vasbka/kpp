@@ -14,10 +14,6 @@ public class Dialog {
         dialog = new ArrayList<>();
     }
 
-    public void setId(int id) {
-        this.id = id;
-    }
-
     public List<User> getUsers() {
         return users;
     }
@@ -26,12 +22,12 @@ public class Dialog {
         this.users = users;
     }
 
-    public void setDialog(List<String> dialog) {
-        this.dialog = dialog;
-    }
-
     public int getId() {
         return id;
+    }
+
+    public void setId(int id) {
+        this.id = id;
     }
 
     public void addUser(User user) {
@@ -46,8 +42,16 @@ public class Dialog {
         return users.contains(user);
     }
 
+    public boolean isDialogExist(List<User> users) {
+        return users.containsAll(users) && users.size() == 2;
+    }
+
     public List<String> getDialog() {
         return dialog;
+    }
+
+    public void setDialog(List<String> dialog) {
+        this.dialog = dialog;
     }
 
     public void printDialog() {

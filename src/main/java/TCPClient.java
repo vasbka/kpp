@@ -34,20 +34,23 @@ class TCPClient {
             parameters.put("choice", "0");
             parameters.put("user", new Gson().toJson(user, User.class));
             outToServer.writeBytes(new Gson().toJson(parameters, HashMap.class) + "\r\n");
-            try {
-                inFromServer.readLine();
-            } catch (SocketException e) {
 
+            try {
+                Thread.sleep(500);
+                inFromServer.readLine();
+                HashMap<String, String> lst = new Gson().fromJson(inFromServer.readLine(), HashMap.class);
+                if (isNull(lst.get("errors"))) {
+                    user = new Gson().fromJson(lst.get("user"), User.class);
+                    break;
+                }
+                new Gson().fromJson(lst.get("errors"), List.class).forEach((error) -> System.out.println(error));
+            } catch (SocketException e) {
             }
-            HashMap<String, String> lst = new Gson().fromJson(inFromServer.readLine(), HashMap.class);
-            if (isNull(lst.get("errors"))) {
-                user = new Gson().fromJson(lst.get("user"), User.class);
-                break;
-            }
-            new Gson().fromJson(lst.get("errors"), List.class).forEach((error) -> System.out.println(error));
+
         }
         new Thread(() -> {
             Socket clientSocket = null;
+            int lastHash = 0;
             while (true) {
                 try {
                     clientSocket = new Socket("localhost", 4000);
@@ -60,29 +63,37 @@ class TCPClient {
                         inFromServer.readLine();
                         String nick;
                         nick = inFromServer.readLine();
-                        if (!Objects.isNull(nick) && !nick.equals("{}")) {
+                        if (!Objects.isNull(nick) && !nick.equals("{}") && lastHash != nick.hashCode()) {
+                            lastHash = nick.hashCode();
                             System.out.println(nick);
                         }
                     } catch (SocketException e) {
 
                     }
                 } catch (IOException e) {
-                    e.printStackTrace();
+//                    e.printStackTrace();
                 }
             }
         }).start();
 
         while (true) {
-            System.out.printf("%n9 - remove from system%n1 - show list user%n" +
-                    "2 - start dialogs%n3 - get all dialogs with me%n4 - start chat by chat id%n");
+
             Map<String, String> parameters = Collections.synchronizedMap(new HashMap<>());
             BufferedReader inFromUser = new BufferedReader(new InputStreamReader(System.in));
             Socket clientSocket = new Socket("localhost", 4000);
             DataOutputStream outToServer = new DataOutputStream(clientSocket.getOutputStream());
             BufferedReader inFromServer = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
 
-            int choice;
-            choice = Integer.valueOf(inFromUser.readLine());
+            int choice = 0;
+            while (true) {
+                try {
+                    System.out.printf("%n1 - get all users%n2 - start dialogs%n3 - get all dialogs with me%n4 - start chat by chat id%n10 - exit%n");
+                    choice = Integer.valueOf(inFromUser.readLine());
+                    break;
+                } catch (NumberFormatException e) {
+                    System.out.println("You enter wrong value. Please try again.");
+                }
+            }
             parameters.put("choice", String.valueOf(choice));
             parameters.put("user", new Gson().toJson(user, User.class));
             if (choice == 2) {
@@ -98,14 +109,20 @@ class TCPClient {
                         chatId = Integer.valueOf(inFromUser.readLine());
                         break;
                     } catch (IOException e) {
-                        //                    e.printStackTrace();
                     }
                 }
                 parameters.put("chatId", new Gson().toJson(chatId, Integer.class));
             }
             outToServer.writeBytes(new Gson().toJson(parameters, HashMap.class) + "\r\n");
+
             inFromServer.readLine();
-            HashMap<String, String> lst = new Gson().fromJson(inFromServer.readLine(), HashMap.class);
+            String answer = inFromServer.readLine();
+            if (!isNull(answer) && answer.equals("exit")) {
+                System.exit(0);
+            }
+            HashMap<String, String> lst = new Gson().fromJson(answer, HashMap.class);
+
+
             if (!isNull(lst)) {
                 if (nonNull(lst.get("errors"))) {
                     new Gson().fromJson(lst.get("errors"), List.class).forEach((error) -> System.out.println(error));
@@ -131,14 +148,17 @@ class TCPClient {
                     } else {
                         for (Dialog dialog : dialogs) {
                             System.out.print("Dialog id : " + dialog.getId() + "<");
-                            dialog.getUsers().forEach((v) -> System.out.print(v));
-                            System.out.print(">");
+                            StringBuilder chatInfo = new StringBuilder();
+                            dialog.getUsers().forEach((v) -> chatInfo.append(v.getName() + " : "));
+                            System.out.print(chatInfo.substring(0, chatInfo.length() - 3) + ">");
+                            System.out.println();
                         }
                     }
                 }
                 if (nonNull(lst.get("chatId"))) {
                     int finalChatId = chatId;
                     User finalUser = user;
+                    int finalChoice = choice;
                     Thread messages = new Thread(() -> {
                         int hashLastDialog = 0;
                         Map<String, String> localParam;
@@ -148,7 +168,7 @@ class TCPClient {
                             DataOutputStream localToServer = null;
                             BufferedReader localInFromServer = null;
                             localParam.put("chatId", new Gson().toJson(finalChatId, Integer.class));
-                            localParam.put("choice", String.valueOf(choice));
+                            localParam.put("choice", String.valueOf(finalChoice));
                             localParam.put("user", new Gson().toJson(finalUser, User.class));
                             Dialog dlg = null;
                             while (isNull(dlg)) {

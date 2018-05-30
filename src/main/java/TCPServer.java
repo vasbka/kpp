@@ -10,6 +10,7 @@ import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.Objects.isNull;
 import static java.util.Objects.nonNull;
@@ -22,7 +23,7 @@ class TCPServer {
         AtomicInteger idDialog = new AtomicInteger(0);
         List<Dialog> dialogs = Collections.synchronizedList(new ArrayList<>());
         new Thread(() -> {
-            AtomicInteger lastUserHash = new AtomicInteger();
+            AtomicReference<String> lastUserName = new AtomicReference<>("");
             ServerSocket welcomeSocket = null;
             try {
                 welcomeSocket = new ServerSocket(4000);
@@ -36,9 +37,8 @@ class TCPServer {
                 } catch (IOException e) {
                     e.printStackTrace();
                 }
-                Socket usersSocket = connectionSocket;
-                Socket obtainedSocket = connectionSocket;
 
+                Socket obtainedSocket = connectionSocket;
                 new Thread(() -> {
                     try (BufferedReader inFromClient = new BufferedReader(new InputStreamReader(obtainedSocket.getInputStream()));
                          ObjectOutputStream outToClient = new ObjectOutputStream(obtainedSocket.getOutputStream())) {
@@ -46,121 +46,141 @@ class TCPServer {
                         HashMap<String, String> param = gson.fromJson(inFromClient.readLine(), HashMap.class);
                         Map<String, Object> parameters = new HashMap<>();
                         List<String> errors = new ArrayList<>();
-                        User user = gson.fromJson(param.get("user"), User.class);
-                        Iterator<User> userIterator = users.iterator();
-                        int choice = gson.fromJson(param.get("choice"), Integer.class);
-                        if (choice == 0) {
-                            while (userIterator.hasNext()) {
-                                if (userIterator.next().getName().toLowerCase().equals(user.getName().toLowerCase())) {
-                                    errors.add("User with this login already exists.");
-                                }
-                            }
-                            if (errors.isEmpty()) {
-                                user.setId(id.getAndIncrement());
-                                users.add(user);
-                                parameters.put("user", new Gson().toJson(user, User.class));
-                            }
-                        }
-                        if (choice == 9) {
-                            //leave
-                            userIterator = users.iterator();
-                            while (userIterator.hasNext()) {
-                                if (userIterator.next().getName().equals(user.getName())) {
-                                    userIterator.remove();
+
+                        if (!isNull(param)) {
+                            User user = gson.fromJson(param.get("user"), User.class);
+                            Iterator<User> userIterator = users.iterator();
+                            if (param.get("choice").equals("100")) {
+                                if (!lastUserName.get().equals("")) {
+                                    outToClient.writeBytes("\r\n" + "User " + lastUserName + " was leaved.\r\n");
+                                    lastUserName.set("");
                                     return;
                                 }
+                                outToClient.writeBytes("\r\n" + "Hello " + users.get(users.size() - 1).getName() + ", welcome to chat.\r\n");
+                                return;
                             }
-                        }
-
-                        //get all user
-                        if (choice == 1) {
-                            parameters.put("users", gson.toJson(users, List.class));
-                            System.out.println("in third");
-                            outToClient.writeBytes("\r\n" + gson.toJson(parameters, HashMap.class) + "\r\n");
-                            return;
-                        }
-                        //start dialog
-                        if (choice == 2) {
-                            int idUserToChat = gson.fromJson(param.get("userToChat"), Integer.class);
-                            if (isNull(idUserToChat)) {
-                                errors.add("Dialog can't be creating with partner with this id.");
-                            }
-                            for (User userWithChat : users) {
-                                if (userWithChat.getId() == idUserToChat) {
-                                    Dialog dialog = new Dialog();
-                                    dialog.setId(idDialog.getAndIncrement());
-                                    dialog.addUser(userWithChat);
-                                    dialog.addUser(user);
-                                    dialogs.add(dialog);
-                                }
-                            }
-                        }
-                        //get all dialogs in which user is exist
-                        if (choice == 3) {
-                            List<Dialog> userDialogs = new ArrayList<>();
-                            for (Dialog dialog : dialogs) {
-                                if (dialog.userExistInDialog(user)) {
-                                    System.out.println("user with dialogs");
-                                    userDialogs.add(dialog);
-                                }
-                            }
-                            parameters.put("dialogs", gson.toJson(userDialogs, List.class));
-                        }
-                        if (choice == 4) {
-                            int chatId = gson.fromJson(param.get("chatId"), Integer.class);
-                            String message = gson.fromJson(param.get("message"), String.class);
-                            for (Dialog dialog : dialogs) {
-                                if (dialog.getId() == chatId && dialog.getUsers().contains(user)) {
-                                    parameters.put("dialog", new Gson().toJson(dialog, Dialog.class));
-                                    parameters.put("chatId", chatId);
-                                    if (nonNull(param.get("option"))) {
-                                        System.out.println("0");
-                                        int option;
-                                        System.out.println("1");
-                                        while (true) {
-                                            try {
-                                                option = Integer.parseInt(param.get("option"));
-                                                break;
-                                            } catch (NumberFormatException e) {
-                                            }
-                                        }
-                                        int userId;
-                                        System.out.println("2");
-                                        while (true) {
-                                            try {
-                                                userId = Integer.parseInt(param.get("userIdForAddedToChat"));
-                                                break;
-                                            } catch (NumberFormatException e) {
-
-                                            }
-                                        }
-                                        System.out.println("3");
-                                        for (User usr : users) {
-                                            if (usr.getId() == userId) {
-                                                System.out.println("4");
-                                                dialog.getUsers().add(usr);
-                                                System.out.println(dialog.getUsers());
-                                                break;
-                                            }
-                                        }
+                            int choice = gson.fromJson(param.get("choice"), Integer.class);
+                            if (choice == 0) {
+                                while (userIterator.hasNext()) {
+                                    if (userIterator.next().getName().toLowerCase().equals(user.getName().toLowerCase())) {
+                                        errors.add("User with this login already exists.");
                                     }
-                                    if (nonNull(message)) {
-                                        dialog.addMessage(user.getName() + ": " + message);
-                                    }
-                                } else {
-                                    errors.add("Sorry but you have not access to this dialog");
+                                }
+                                if (errors.isEmpty()) {
+                                    user.setId(id.getAndIncrement());
+                                    users.add(user);
+                                    parameters.put("user", new Gson().toJson(user, User.class));
                                 }
                             }
-                        }
-                        if (!errors.isEmpty()) {
-                            parameters.put("errors", gson.toJson(errors, List.class));
-                            outToClient.writeBytes("\r\n" + gson.toJson(parameters, HashMap.class) + "\r\n");
-                            return;
+                            if (choice == 10) {
+                                //leave
+                                userIterator = users.iterator();
+                                while (userIterator.hasNext()) {
+                                    if (userIterator.next().getName().equals(user.getName())) {
+                                        lastUserName.set(user.getName());
+                                        userIterator.remove();
+                                        outToClient.writeBytes("\r\n" + "exit" + "\r\n");
+                                        return;
+                                    }
+                                }
+                            }
+
+                            //get all user
+                            if (choice == 1) {
+                                parameters.put("users", gson.toJson(users, List.class));
+                                System.out.println("in third");
+                                outToClient.writeBytes("\r\n" + gson.toJson(parameters, HashMap.class) + "\r\n");
+                                return;
+                            }
+                            //start dialog
+                            if (choice == 2) {
+                                int idUserToChat = gson.fromJson(param.get("userToChat"), Integer.class);
+                                if (isNull(idUserToChat) || (isNull(users.get(idUserToChat)))) {
+                                    errors.add("Dialog can't be creating with partner with this id.");
+                                }
+                                List<User> usersForDialog = new ArrayList<>();
+                                usersForDialog.add(users.get(idUserToChat));
+                                usersForDialog.add(user);
+                                boolean dialogIsExist = false;
+                                for (Dialog dialog : dialogs) {
+                                    if (dialog.isDialogExist(usersForDialog)) {
+                                        errors.add("The dialog exists.");
+                                        dialogIsExist = true;
+                                        break;
+                                    }
+
+                                }
+                                if (!dialogIsExist) {
+                                    Dialog newDialog = new Dialog();
+                                    newDialog.setId(idDialog.getAndIncrement());
+                                    newDialog.addUser(user);
+                                    newDialog.addUser(users.get(idUserToChat));
+                                    dialogs.add(newDialog);
+                                }
+                            }
+                            //get all dialogs in which user is exist
+                            if (choice == 3) {
+                                List<Dialog> userDialogs = new ArrayList<>();
+                                for (Dialog dialog : dialogs) {
+                                    if (dialog.userExistInDialog(user)) {
+                                        userDialogs.add(dialog);
+                                    }
+                                }
+                                parameters.put("dialogs", gson.toJson(userDialogs, List.class));
+                            }
+                            if (choice == 4) {
+                                int chatId = gson.fromJson(param.get("chatId"), Integer.class);
+                                String message = gson.fromJson(param.get("message"), String.class);
+                                for (Dialog dialog : dialogs) {
+                                    if (dialog.getId() == chatId && dialog.getUsers().contains(user)) {
+                                        parameters.put("dialog", new Gson().toJson(dialog, Dialog.class));
+                                        parameters.put("chatId", chatId);
+                                        if (nonNull(param.get("option"))) {
+                                            int option;
+                                            while (true) {
+                                                try {
+                                                    option = Integer.parseInt(param.get("option"));
+                                                    break;
+                                                } catch (NumberFormatException e) {
+                                                }
+                                            }
+                                            int userId;
+                                            while (true) {
+                                                try {
+                                                    userId = Integer.parseInt(param.get("userIdForAddedToChat"));
+                                                    break;
+                                                } catch (NumberFormatException e) {
+
+                                                }
+                                            }
+                                            for (User usr : users) {
+                                                if (usr.getId() == userId) {
+                                                    System.out.println("4");
+                                                    dialog.getUsers().add(usr);
+                                                    System.out.println(dialog.getUsers());
+                                                    break;
+                                                }
+                                            }
+                                        }
+                                        if (nonNull(message)) {
+                                            dialog.addMessage(user.getName() + ": " + message);
+                                        }
+                                    } else {
+                                        errors.add("Sorry but you have not access to this dialog");
+                                    }
+                                }
+                            }
+                            if (!errors.isEmpty()) {
+                                parameters.put("errors", gson.toJson(errors, List.class));
+                                outToClient.writeBytes("\r\n" + gson.toJson(parameters, HashMap.class) + "\r\n");
+                                return;
+                            }
                         }
                         outToClient.writeBytes("\r\n" + gson.toJson(parameters, HashMap.class) + "\r\n");
                     } catch (IOException e) {
 //                        e.printStackTrace();
                     }
+
                 }).start();
             }
         }).start();
