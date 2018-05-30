@@ -22,6 +22,7 @@ class TCPServer {
         AtomicInteger idDialog = new AtomicInteger(0);
         List<Dialog> dialogs = Collections.synchronizedList(new ArrayList<>());
         new Thread(() -> {
+            AtomicInteger lastUserHash = new AtomicInteger();
             ServerSocket welcomeSocket = null;
             try {
                 welcomeSocket = new ServerSocket(4000);
@@ -35,10 +36,12 @@ class TCPServer {
                 } catch (IOException e) {
                     e.printStackTrace();
                 }
-                Socket finalConnectionSocket = connectionSocket;
+                Socket usersSocket = connectionSocket;
+                Socket obtainedSocket = connectionSocket;
+
                 new Thread(() -> {
-                    try (BufferedReader inFromClient = new BufferedReader(new InputStreamReader(finalConnectionSocket.getInputStream()));
-                         ObjectOutputStream outToClient = new ObjectOutputStream(finalConnectionSocket.getOutputStream())) {
+                    try (BufferedReader inFromClient = new BufferedReader(new InputStreamReader(obtainedSocket.getInputStream()));
+                         ObjectOutputStream outToClient = new ObjectOutputStream(obtainedSocket.getOutputStream())) {
                         Gson gson = new Gson();
                         HashMap<String, String> param = gson.fromJson(inFromClient.readLine(), HashMap.class);
                         Map<String, Object> parameters = new HashMap<>();
@@ -58,7 +61,7 @@ class TCPServer {
                                 parameters.put("user", new Gson().toJson(user, User.class));
                             }
                         }
-                        if (choice == 2) {
+                        if (choice == 9) {
                             //leave
                             userIterator = users.iterator();
                             while (userIterator.hasNext()) {
@@ -68,15 +71,16 @@ class TCPServer {
                                 }
                             }
                         }
+
                         //get all user
-                        if (choice == 3) {
+                        if (choice == 1) {
                             parameters.put("users", gson.toJson(users, List.class));
                             System.out.println("in third");
                             outToClient.writeBytes("\r\n" + gson.toJson(parameters, HashMap.class) + "\r\n");
                             return;
                         }
                         //start dialog
-                        if (choice == 4) {
+                        if (choice == 2) {
                             int idUserToChat = gson.fromJson(param.get("userToChat"), Integer.class);
                             if (isNull(idUserToChat)) {
                                 errors.add("Dialog can't be creating with partner with this id.");
@@ -92,7 +96,7 @@ class TCPServer {
                             }
                         }
                         //get all dialogs in which user is exist
-                        if (choice == 5) {
+                        if (choice == 3) {
                             List<Dialog> userDialogs = new ArrayList<>();
                             for (Dialog dialog : dialogs) {
                                 if (dialog.userExistInDialog(user)) {
@@ -102,18 +106,7 @@ class TCPServer {
                             }
                             parameters.put("dialogs", gson.toJson(userDialogs, List.class));
                         }
-                        if (choice == 6) {
-                            int idChatToStart = gson.fromJson(param.get("idChatToStart"), Integer.class);
-                            if (isNull(idChatToStart)) {
-                                errors.add("Dialog can't be creating with partner with this id.");
-                            }
-                            for (Dialog dialog : dialogs) {
-                                if (dialog.getId() == idChatToStart) {
-                                    parameters.put("dialog", new Gson().toJson(dialog, Dialog.class));
-                                }
-                            }
-                        }
-                        if (choice == 7) {
+                        if (choice == 4) {
                             int chatId = gson.fromJson(param.get("chatId"), Integer.class);
                             String message = gson.fromJson(param.get("message"), String.class);
                             for (Dialog dialog : dialogs) {
@@ -171,9 +164,7 @@ class TCPServer {
                 }).start();
             }
         }).start();
-        Thread welcomeNewUser = new Thread(() -> {
 
-        });
         while (true) {
             BufferedReader bf = new BufferedReader(new InputStreamReader(System.in));
             String choice = bf.readLine();
@@ -185,8 +176,21 @@ class TCPServer {
                     }
                     System.out.print(dialog.getId());
                 }
+
                 choiceDialog = bf.readLine();
             }
+            String finalChoiceDialog = choiceDialog;
+            new Thread(() -> {
+                Dialog dialog = dialogs.get(Integer.valueOf(finalChoiceDialog));
+                dialog.printDialog();
+                int last = dialog.getDialog().get(dialog.getDialog().size() - 1).hashCode();
+                while (true) {
+                    if (dialogs.get(Integer.valueOf(finalChoiceDialog)).getDialog().get(dialog.getDialog().size() - 1).hashCode() != last) {
+                        System.out.println(dialogs.get(Integer.valueOf(finalChoiceDialog)).getDialog().get(dialog.getDialog().size() - 1));
+                        last = dialogs.get(Integer.valueOf(finalChoiceDialog)).getDialog().get(dialog.getDialog().size() - 1).hashCode();
+                    }
+                }
+            }).start();
             dialogs.get(Integer.valueOf(choiceDialog)).printDialog();
 
         }
